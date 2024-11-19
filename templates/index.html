@@ -22,10 +22,22 @@
             font-size: 16px;
             cursor: pointer;
         }
+        .instructions {
+            margin-bottom: 20px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
     <h1>Race Time Tracker</h1>
+    <div class="instructions">
+        Point Deduction Keys:
+        A: Crossing Central Line (10 pts)
+        S: On Opponent's Track (20 pts)
+        D: No Mobility (30 pts)
+        F: Ramp Maneuver (40 pts)
+        G: Collision (50 pts)
+    </div>
     <div id="grid" style="height: 400px; overflow: hidden;"></div>
 
     <div class="button-container">
@@ -38,19 +50,37 @@
         const downloadBtn = document.getElementById('download-btn');
 
         // Create initial data with 10 empty rows
-        const initialData = Array(10).fill().map(() => Array(7).fill(null));
+        const initialData = Array(10).fill().map(() => Array(12).fill(null));
         
         const hot = new Handsontable(container, {
             data: initialData,
-            colHeaders: ['Participation Team', 'Lap 1 Time', 'Lap 2 Time', 'Lap 3 Time', 'Total Time', 'Point Deduction', 'Total Points'],
+            colHeaders: [
+                'Participation Team', 
+                'Lap 1 Time', 
+                'Lap 2 Time', 
+                'Lap 3 Time', 
+                'Total Time', 
+                'Point Deduction', 
+                'Total Points', 
+                'Central Line', 
+                'Opponent Track', 
+                'No Mobility', 
+                'Ramp Maneuver', 
+                'Collision'
+            ],
             columns: [
-                { type: 'text' },  // Team name
-                { type: 'text' },  // Lap 1
-                { type: 'text' },  // Lap 2
-                { type: 'text' },  // Lap 3
+                { type: 'text' },    // Team name
+                { type: 'text' },    // Lap 1
+                { type: 'text' },    // Lap 2
+                { type: 'text' },    // Lap 3
                 { type: 'text', readOnly: true },  // Total Time
-                { type: 'numeric' },  // Point Deduction
-                { type: 'numeric', readOnly: true }  // Total Points
+                { type: 'numeric' }, // Point Deduction
+                { type: 'numeric', readOnly: true }, // Total Points
+                { type: 'numeric' }, // Central Line Deductions
+                { type: 'numeric' }, // Opponent Track Deductions
+                { type: 'numeric' }, // No Mobility Deductions
+                { type: 'numeric' }, // Ramp Maneuver Deductions
+                { type: 'numeric' }  // Collision Deductions
             ],
             minSpareRows: 1,
             height: 'auto',
@@ -106,34 +136,72 @@
             }
         });
 
+// Keyboard event listener for point deductions
+document.addEventListener('keydown', function(event) {
+    const activeRow = hot.getSelected() ? hot.getSelected()[0][0] : null;
+    const activeCol = hot.getSelected() ? hot.getSelected()[0][1] : null;
+
+    if (activeRow !== null && activeCol === 5) {  // Check if we're in the Point Deduction column
+        switch(event.key.toLowerCase()) {
+            case 'a':
+                incrementPointDeduction(activeRow, 7, 10); // Central Line Deduction
+                break;
+            case 's':
+                incrementPointDeduction(activeRow, 8, 20); // Opponent Track Deduction
+                break;
+            case 'd':
+                incrementPointDeduction(activeRow, 9, 30); // No Mobility Deduction
+                break;
+            case 'f':
+                incrementPointDeduction(activeRow, 10, 40); // Ramp Maneuver Deduction
+                break;
+            case 'g':
+                incrementPointDeduction(activeRow, 11, 50); // Collision Deduction
+                break;
+        }
+    }
+});
+
+// Function to increment point deduction
+function incrementPointDeduction(row, column, points) {
+    const currentValue = hot.getDataAtCell(row, column) || 0;
+    const newValue = currentValue + 1;
+    hot.setDataAtCell(row, column, newValue);
+
+    // Deduct total points
+    const currentTotal = hot.getDataAtCell(row, 6) || 1000; // Get the total points cell
+    const newTotal = Math.max(0, currentTotal - points); // Calculate new total points
+    hot.setDataAtCell(row, 6, newTotal);
+}
+
         // Download button functionality
         downloadBtn.addEventListener('click', () => {
-    const tableData = hot.getData(); // Get all data from Handsontable
-    
-    // Send data to the server via AJAX
-    fetch('/download', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(tableData) // Send data as JSON
-    })
-    .then(response => response.blob())
-    .then(blob => {
-        // Create a download link for the returned file
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = 'race_results.xlsx';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-    })
-    .catch(error => {
-        console.error('Error downloading file:', error);
-    });
-});
+            const tableData = hot.getData(); // Get all data from Handsontable
+            
+            // Send data to the server via AJAX
+            fetch('/download', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(tableData) // Send data as JSON
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                // Create a download link for the returned file
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'race_results.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(error => {
+                console.error('Error downloading file:', error);
+            });
+        });
 
         // Format time input to handle flexible formats
         function formatTimeInput(value) {

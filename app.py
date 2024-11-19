@@ -18,7 +18,20 @@ def download():
     table_data = request.get_json()
     
     # Create DataFrame from the table data
-    columns = ['Participation Team', 'Lap 1 Time', 'Lap 2 Time', 'Lap 3 Time', 'Total Time', 'Point Deduction', 'Total Points']
+    columns = [
+        'Participation Team', 
+        'Lap 1 Time', 
+        'Lap 2 Time', 
+        'Lap 3 Time', 
+        'Total Time', 
+        'Point Deduction', 
+        'Total Points', 
+        'Central Line', 
+        'Opponent Track', 
+        'No Mobility', 
+        'Ramp Maneuver', 
+        'Collision'
+    ]
     df = pd.DataFrame(table_data, columns=columns)
     
     # Generate filename with timestamp
