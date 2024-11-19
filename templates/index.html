@@ -108,8 +108,32 @@
 
         // Download button functionality
         downloadBtn.addEventListener('click', () => {
-            window.location.href = '/download';
-        });
+    const tableData = hot.getData(); // Get all data from Handsontable
+    
+    // Send data to the server via AJAX
+    fetch('/download', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(tableData) // Send data as JSON
+    })
+    .then(response => response.blob())
+    .then(blob => {
+        // Create a download link for the returned file
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'race_results.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+    })
+    .catch(error => {
+        console.error('Error downloading file:', error);
+    });
+});
 
         // Format time input to handle flexible formats
         function formatTimeInput(value) {

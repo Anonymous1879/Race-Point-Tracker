@@ -1,30 +1,25 @@
-from flask import Flask, send_file
+from flask import Flask, render_template, send_file, after_this_request, request
 import pandas as pd
 from datetime import datetime
 import os
 from tempfile import NamedTemporaryFile
+import json
 
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return send_file('index.html')
+    # Ensure that 'index.html' is in a 'templates' folder
+    return render_template('index.html')
 
-@app.route('/download')
+@app.route('/download', methods=['POST'])
 def download():
-    # Create sample data if needed
-    data = {
-        'Participation Team': ['Team A'],
-        'Lap 1 Time': ['01:30'],
-        'Lap 2 Time': ['01:45'],
-        'Lap 3 Time': ['01:35'],
-        'Total Time': ['04:50'],
-        'Point Deduction': [50],
-        'Total Points': [950]
-    }
+    # Get the data sent from the frontend
+    table_data = request.get_json()
     
-    # Create DataFrame
-    df = pd.DataFrame(data)
+    # Create DataFrame from the table data
+    columns = ['Participation Team', 'Lap 1 Time', 'Lap 2 Time', 'Lap 3 Time', 'Total Time', 'Point Deduction', 'Total Points']
+    df = pd.DataFrame(table_data, columns=columns)
     
     # Generate filename with timestamp
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -34,6 +29,16 @@ def download():
         filename = tmp_file.name
         # Save to Excel
         df.to_excel(filename, index=False)
+    
+    @after_this_request
+    def remove_file(response):
+        try:
+            # Delay the file removal until after the response has been sent
+            if os.path.exists(filename):
+                os.remove(filename)
+        except Exception as e:
+            print(f"Error removing or closing downloaded file handle: {e}")
+        return response
     
     # Return the file to be downloaded
     return send_file(filename, as_attachment=True, download_name=f'race_results_{timestamp}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
