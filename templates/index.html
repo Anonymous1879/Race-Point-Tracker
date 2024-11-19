@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Race Time Tracker</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css">
+    <style>
+        body {
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .button-container {
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Race Time Tracker</h1>
+    <div id="grid" style="height: 400px; overflow: hidden;"></div>
+
+    <div class="button-container">
+        <button id="download-btn">Download Excel</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
+    <script>
+        const container = document.getElementById('grid');
+        const downloadBtn = document.getElementById('download-btn');
+
+        // Create initial data with 10 empty rows
+        const initialData = Array(10).fill().map(() => Array(7).fill(null));
+        
+        const hot = new Handsontable(container, {
+            data: initialData,
+            colHeaders: ['Participation Team', 'Lap 1 Time', 'Lap 2 Time', 'Lap 3 Time', 'Total Time', 'Point Deduction', 'Total Points'],
+            columns: [
+                { type: 'text' },  // Team name
+                { type: 'text' },  // Lap 1
+                { type: 'text' },  // Lap 2
+                { type: 'text' },  // Lap 3
+                { type: 'text', readOnly: true },  // Total Time
+                { type: 'numeric' },  // Point Deduction
+                { type: 'numeric', readOnly: true }  // Total Points
+            ],
+            minSpareRows: 1,
+            height: 'auto',
+            startRows: 10,
+            minRows: 10,
+            width: '100%',
+            licenseKey: 'non-commercial-and-evaluation',
+            beforeChange: function(changes) {
+                changes.forEach(change => {
+                    const [row, prop, oldValue, newValue] = change;
+                    
+                    // Format time entries for lap times
+                    if ([1, 2, 3].includes(parseInt(prop)) && newValue) {
+                        const formattedTime = formatTimeInput(newValue);
+                        if (formattedTime) {
+                            change[3] = formattedTime;
+                        } else {
+                            change[3] = oldValue;
+                            alert('Please enter time in m:s format (e.g., 1:30 or 30:1)');
+                        }
+                    }
+                });
+            },
+            afterChange: function(changes, source) {
+                if (!changes) return;
+                
+                changes.forEach(([row, prop, oldValue, newValue]) => {
+                    // Handle point deduction
+                    if (prop === 5 && newValue) {
+                        const deduction = parseFloat(newValue);
+                        if (isNaN(deduction) || deduction < 0 || deduction > 1000) {
+                            hot.setDataAtCell(row, prop, oldValue);
+                            alert('Point deduction must be between 0 and 1000');
+                            return;
+                        }
+                        
+                        // Calculate and set total points
+                        const currentTotal = hot.getDataAtCell(row, 6) || 1000;
+                        const newTotal = Math.max(0, currentTotal - deduction);
+                        hot.setDataAtCell(row, 6, newTotal);
+                        
+                        // Clear deduction cell after processing
+                        setTimeout(() => {
+                            hot.setDataAtCell(row, 5, null);
+                        }, 100);
+                    }
+
+                    // Update total time if lap times change
+                    if ([1, 2, 3].includes(parseInt(prop))) {
+                        updateTotalTime(row);
+                    }
+                });
+            }
+        });
+
+        // Download button functionality
+        downloadBtn.addEventListener('click', () => {
+            window.location.href = '/download';
+        });
+
+        // Format time input to handle flexible formats
+        function formatTimeInput(value) {
+            if (!value) return null;
+            
+            // Remove any spaces and split by colon
+            const parts = value.trim().split(':');
+            if (parts.length !== 2) return null;
+
+            let minutes = parseInt(parts[0]);
+            let seconds = parseInt(parts[1]);
+
+            // Validate ranges
+            if (isNaN(minutes) || isNaN(seconds) || minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59) {
+                return null;
+            }
+
+            // Format with padding when needed
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // Convert time string to seconds
+        function timeToSeconds(timeStr) {
+            if (!timeStr) return 0;
+            const [minutes, seconds] = timeStr.split(':').map(Number);
+            return minutes * 60 + seconds;
+        }
+
+        // Convert seconds to time string
+        function secondsToTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+
+        // Update total time for a specific row
+        function updateTotalTime(row) {
+            const rowData = hot.getDataAtRow(row);
+            
+            // Calculate total time
+            const totalSeconds = [1, 2, 3].reduce((sum, i) => {
+                return sum + timeToSeconds(rowData[i]);
+            }, 0);
+            
+            if (totalSeconds > 0) {
+                hot.setDataAtCell(row, 4, secondsToTime(totalSeconds));
+            }
+        }
+    </script>
+</body>
+</html>
