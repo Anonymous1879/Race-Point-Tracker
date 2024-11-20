@@ -1,5 +1,6 @@
-from flask import Flask, render_template, send_file, after_this_request, request
+from flask import Flask, render_template, send_file, after_this_request, request, jsonify
 import pandas as pd
+import numpy as np
 from datetime import datetime
 import os
 from tempfile import NamedTemporaryFile
@@ -9,8 +10,39 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    # Ensure that 'index.html' is in a 'templates' folder
     return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not file.filename.endswith('.xlsx'):
+        return jsonify({'error': 'Please upload an Excel file (.xlsx)'}), 400
+    
+    try:
+        # Read the Excel file
+        df = pd.read_excel(file)
+        
+        # Replace NaN values with None (which will be converted to null in JSON)
+        df = df.replace({np.nan: None})
+        
+        # Convert DataFrame to list of lists for frontend
+        data = df.values.tolist()
+        
+        # Convert any remaining numpy types to Python native types
+        data = [[None if pd.isna(cell) else 
+                int(cell) if isinstance(cell, np.integer) else
+                float(cell) if isinstance(cell, np.floating) else
+                str(cell) for cell in row] for row in data]
+        
+        return jsonify({'data': data})
+    except Exception as e:
+        return jsonify({'error': f'Error processing file: {str(e)}'}), 500
 
 @app.route('/download', methods=['POST'])
 def download():
@@ -46,14 +78,12 @@ def download():
     @after_this_request
     def remove_file(response):
         try:
-            # Delay the file removal until after the response has been sent
             if os.path.exists(filename):
                 os.remove(filename)
         except Exception as e:
             print(f"Error removing or closing downloaded file handle: {e}")
         return response
     
-    # Return the file to be downloaded
     return send_file(filename, as_attachment=True, download_name=f'race_results_{timestamp}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 if __name__ == '__main__':
